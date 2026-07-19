@@ -7,32 +7,97 @@ A hands-on learning project for Apache Airflow 3.x, running locally with Docker 
 ```
 .
 ├── dags/
-│   ├── 001_dag.py           # Basic DAG with Python tasks and dependencies
+│   ├── 001_dag.py            # Basic DAG with Python tasks and dependencies
 │   ├── 002_dag_versioning.py # DAG versioning with mixed Python and Bash tasks
-│   ├── 003_operator.py      # BashOperator example
-│   └── 004_xcoms.py         # XComs for passing data between tasks
-├── logs/                    # Airflow task logs (git-ignored)
-├── plugins/                 # Custom Airflow plugins
-├── config/                  # Airflow configuration
-└── docker-compose.yaml      # Local Airflow stack (CeleryExecutor + Redis + PostgreSQL)
+│   ├── 003_operator.py       # BashOperator example
+│   ├── 004_xcoms.py          # XComs for passing data between tasks (return-value style)
+│   └── 005_xcoms_kwargs.py   # XComs via **kwargs and TaskInstance (ti) object
+├── logs/                     # Airflow task logs (git-ignored)
+├── plugins/                  # Custom Airflow plugins
+├── config/                   # Airflow configuration
+├── .env                      # Environment variables (AIRFLOW_UID, FERNET_KEY, etc.)
+└── docker-compose.yaml       # Local Airflow stack (CeleryExecutor + Redis + PostgreSQL)
 ```
 
 ## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - At least 4GB RAM and 2 CPUs allocated to Docker
+- At least 10GB free disk space
 
-## Getting Started
+## Setup
+
+### 1. Clone the repository
 
 ```bash
-# Start the Airflow stack
-docker compose up -d
-
-# Access the Airflow UI
-# URL: http://localhost:8080
-# Username: airflow
-# Password: airflow
+git clone <repo-url>
+cd apache-airflow
 ```
+
+### 2. Create the `.env` file
+
+Create a `.env` file in the project root with the following content:
+
+```env
+AIRFLOW_UID=50000
+```
+
+> **Linux only:** run `echo "AIRFLOW_UID=$(id -u)" > .env` to use your actual user ID so mounted files are not owned by root.
+
+### 3. Generate a Fernet key (optional but recommended)
+
+The Fernet key encrypts sensitive values (connections, variables) stored in the database. If not set, Airflow will generate one automatically, but it will change on every restart.
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Add the result to your `.env`:
+
+```env
+FERNET_KEY=<your-generated-key>
+```
+
+### 4. Create required local directories
+
+These folders are mounted into the containers and must exist before starting:
+
+```bash
+mkdir -p logs plugins config
+```
+
+> On Linux, also set the correct permissions: `chmod -R 777 logs plugins config`
+
+### 5. Initialize the database and start the stack
+
+On first run, `airflow-init` bootstraps the database, creates the admin user, and sets correct permissions on the mounted volumes:
+
+```bash
+docker compose up airflow-init
+```
+
+Wait for it to exit with code 0, then start all services:
+
+```bash
+docker compose up -d
+```
+
+### 6. Verify all services are healthy
+
+```bash
+docker compose ps
+```
+
+All services should show `healthy` or `running`. This may take 1–2 minutes on first start.
+
+### 7. Access the Airflow UI
+
+Open [http://localhost:8080](http://localhost:8080) in your browser.
+
+| Field    | Value     |
+|----------|-----------|
+| Username | `airflow` |
+| Password | `airflow` |
 
 ## DAGs
 
@@ -58,7 +123,14 @@ create_file
 ```
 
 ### 004 — XComs ([dags/004_xcoms.py](dags/004_xcoms.py))
-Demonstrates XComs — Airflow's mechanism for passing data between tasks. Implements a simple ETL pipeline where the output of one task is automatically passed as input to the next.
+Demonstrates XComs — Airflow's mechanism for passing data between tasks. Implements a simple ETL pipeline where the output of one task is automatically passed as input to the next using the return-value style.
+
+```
+extract >> transform >> load
+```
+
+### 005 — XComs via kwargs ([dags/005_xcoms_kwargs.py](dags/005_xcoms_kwargs.py))
+Same ETL pipeline as 004, but uses the `**kwargs` / `TaskInstance (ti)` approach — manually pushing and pulling data using `ti.xcom_push()` and `ti.xcom_pull()` with explicit keys instead of relying on return values.
 
 ```
 extract >> transform >> load
