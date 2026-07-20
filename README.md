@@ -11,7 +11,8 @@ A hands-on learning project for Apache Airflow 3.x, running locally with Docker 
 │   ├── 002_dag_versioning.py # DAG versioning with mixed Python and Bash tasks
 │   ├── 003_operator.py       # BashOperator example
 │   ├── 004_xcoms.py          # XComs for passing data between tasks (return-value style)
-│   └── 005_xcoms_kwargs.py   # XComs via **kwargs and TaskInstance (ti) object
+│   ├── 005_xcoms_kwargs.py   # XComs via **kwargs and TaskInstance (ti) object
+│   └── 006_parallel_dag.py   # Parallel task execution with XComs and a custom trigger rule
 ├── logs/                     # Airflow task logs (git-ignored)
 ├── plugins/                  # Custom Airflow plugins
 ├── config/                   # Airflow configuration
@@ -134,6 +135,13 @@ Same ETL pipeline as 004, but uses the `**kwargs` / `TaskInstance (ti)` approach
 
 ```
 extract >> transform >> load
+```
+
+### 006 — Parallel DAG ([dags/006_parallel_dag.py](dags/006_parallel_dag.py))
+Demonstrates parallel task execution. A single `extract` task pushes two datasets (S3 and Snowflake) to XCom. Two `transform` tasks then run in parallel, each consuming one dataset. A `createDataframe` task merges both results into a pandas DataFrame, using `trigger_rule='none_failed_min_one_success'` so it runs even if one branch is skipped. Finally a `BashOperator` signals load completion.
+
+```
+extract >> [transform_s3, transform_sf] >> createDataframe >> run_this_bash
 ```
 
 ## Stack
